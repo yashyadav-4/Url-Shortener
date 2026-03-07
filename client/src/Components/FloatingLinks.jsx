@@ -26,12 +26,17 @@ const LINK_TEXTS = [
 
 const LINK_COUNT = 20;
 const BASE_SPEED = 0.6;
-const GRAVITY_RADIUS = 150;
-const GRAVITY_STRENGTH = 8000;
-const CONSUME_RADIUS = 18;
-const BLACK_HOLE_VISUAL_RADIUS = 22;
+const GRAVITY_RADIUS = 160;
+const GRAVITY_STRENGTH = 9000;
+const CONSUME_RADIUS = 22;
 const FONT_SIZE = 14;
 const FONT = `600 ${FONT_SIZE}px 'Inter', system-ui, sans-serif`;
+
+/* ── Portal constants ── */
+const PORTAL_BASE_RADIUS = 10;
+const PORTAL_MAX_RADIUS = 20;
+const PORTAL_SPARK_COUNT = 60;
+const PORTAL_RING_COUNT = 3;
 
 /* ── Helper: measure text dimensions (cached) ── */
 const textSizeCache = {};
@@ -54,13 +59,12 @@ function createLink(ctx, canvasW, canvasH, fromEdge = false) {
 
     let x, y;
     if (fromEdge) {
-        // Spawn from a random edge
         const edge = Math.floor(Math.random() * 4);
         switch (edge) {
-            case 0: x = Math.random() * canvasW; y = -h; break;         // top
-            case 1: x = canvasW + w; y = Math.random() * canvasH; break; // right
-            case 2: x = Math.random() * canvasW; y = canvasH + h; break; // bottom
-            default: x = -w; y = Math.random() * canvasH; break;         // left
+            case 0: x = Math.random() * canvasW; y = -h; break;
+            case 1: x = canvasW + w; y = Math.random() * canvasH; break;
+            case 2: x = Math.random() * canvasW; y = canvasH + h; break;
+            default: x = -w; y = Math.random() * canvasH; break;
         }
     } else {
         x = w + Math.random() * (canvasW - w * 2);
@@ -68,23 +72,19 @@ function createLink(ctx, canvasW, canvasH, fromEdge = false) {
     }
 
     return {
-        x,
-        y,
+        x, y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        rotation: (Math.random() - 0.5) * Math.PI * 0.5, // initial rotation
+        rotation: (Math.random() - 0.5) * Math.PI * 0.5,
         rotationSpeed: (Math.random() - 0.5) * 0.008,
-        text,
-        w,
-        h,
-        opacity: 0.12 + Math.random() * 0.12, // 0.12 – 0.24
-        scale: fromEdge ? 0.01 : 1, // start tiny if spawning from edge
-        alive: true,
+        text, w, h,
+        opacity: 0.12 + Math.random() * 0.12,
+        scale: fromEdge ? 0.01 : 1,
         consuming: false,
     };
 }
 
-/* ── AABB collision check (axis-aligned, uses rotated bounding ≈ original box) ── */
+/* ── AABB collision check ── */
 function linksOverlap(a, b) {
     const pad = 4;
     return (
@@ -100,12 +100,13 @@ export default function FloatingLinks() {
     const linksRef = useRef([]);
     const mouseRef = useRef({ x: -9999, y: -9999, active: false });
     const rafRef = useRef(null);
+    const timeRef = useRef(0);
 
     useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
 
-        /* ── Resize handler ── */
+        /* ── Resize ── */
         function resize() {
             const dpr = window.devicePixelRatio || 1;
             canvas.width = window.innerWidth * dpr;
@@ -136,12 +137,156 @@ export default function FloatingLinks() {
         window.addEventListener('mousemove', onMouseMove);
         window.addEventListener('mouseleave', onMouseLeave);
 
+        /* ── Draw the Doctor Strange portal ── */
+        function drawPortal(ctx, mx, my, intensity, time) {
+            const radius = PORTAL_BASE_RADIUS + (PORTAL_MAX_RADIUS - PORTAL_BASE_RADIUS) * intensity;
+
+            // === Outer distortion glow ===
+            const distortR = radius * 3.5;
+            const distortGrad = ctx.createRadialGradient(mx, my, radius * 0.3, mx, my, distortR);
+            distortGrad.addColorStop(0, `rgba(0, 0, 0, ${0.12 * intensity})`);
+            distortGrad.addColorStop(0.3, `rgba(15, 10, 30, ${0.06 * intensity})`);
+            distortGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.beginPath();
+            ctx.arc(mx, my, distortR, 0, Math.PI * 2);
+            ctx.fillStyle = distortGrad;
+            ctx.fill();
+
+            // === Dark void center (the black hole) — drawn FIRST so rings overlay it ===
+            // Layer 1: wide dark spread
+            const voidGrad = ctx.createRadialGradient(mx, my, 0, mx, my, radius * 1.1);
+            voidGrad.addColorStop(0, `rgba(0, 0, 0, ${0.95 * intensity})`);
+            voidGrad.addColorStop(0.3, `rgba(0, 0, 0, ${0.9 * intensity})`);
+            voidGrad.addColorStop(0.55, `rgba(5, 5, 10, ${0.7 * intensity})`);
+            voidGrad.addColorStop(0.75, `rgba(10, 10, 15, ${0.35 * intensity})`);
+            voidGrad.addColorStop(1, `rgba(15, 15, 20, ${0.05 * intensity})`);
+            ctx.beginPath();
+            ctx.arc(mx, my, radius * 1.1, 0, Math.PI * 2);
+            ctx.fillStyle = voidGrad;
+            ctx.fill();
+
+            // Layer 2: pitch-black core
+            const coreGrad = ctx.createRadialGradient(mx, my, 0, mx, my, radius * 0.45);
+            coreGrad.addColorStop(0, `rgba(0, 0, 0, ${1.0 * intensity})`);
+            coreGrad.addColorStop(0.7, `rgba(0, 0, 0, ${0.95 * intensity})`);
+            coreGrad.addColorStop(1, `rgba(0, 0, 0, ${0.6 * intensity})`);
+            ctx.beginPath();
+            ctx.arc(mx, my, radius * 0.45, 0, Math.PI * 2);
+            ctx.fillStyle = coreGrad;
+            ctx.fill();
+
+            // === Spinning dark spark rings — originating from center outward ===
+            for (let ring = 0; ring < PORTAL_RING_COUNT; ring++) {
+                const ringRadius = radius * (0.85 + ring * 0.4);
+                const ringSpeed = (ring % 2 === 0 ? 1 : -1) * (1.5 - ring * 0.3);
+                const sparkCount = PORTAL_SPARK_COUNT - ring * 12;
+                const ringAlpha = (1 - ring * 0.2) * intensity;
+
+                ctx.save();
+                ctx.translate(mx, my);
+                ctx.rotate(time * ringSpeed);
+
+                for (let i = 0; i < sparkCount; i++) {
+                    const angle = (Math.PI * 2 * i) / sparkCount;
+                    const wobble = Math.sin(time * 3 + i * 1.7) * 3 * intensity;
+
+                    // Spark tip at ring position
+                    const sx = Math.cos(angle) * (ringRadius + wobble);
+                    const sy = Math.sin(angle) * (ringRadius + wobble);
+
+                    // Origin near center
+                    const originDist = ringRadius * 0.3;
+                    const ox = Math.cos(angle) * originDist;
+                    const oy = Math.sin(angle) * originDist;
+
+                    // Curved control point — offset perpendicular to create spiral bend
+                    const midDist = ringRadius * 0.65;
+                    const bendAngle = angle + 0.6; // offset creates the curve/spiral
+                    const cpx = Math.cos(bendAngle) * midDist;
+                    const cpy = Math.sin(bendAngle) * midDist;
+
+                    // Dark spark color
+                    const lightness = 5 + Math.sin(i * 0.8 + time * 4) * 5;
+                    const sparkAlpha = (0.5 + Math.sin(i * 1.3 + time * 5) * 0.25) * ringAlpha;
+
+                    ctx.beginPath();
+                    ctx.moveTo(ox, oy);
+                    ctx.quadraticCurveTo(cpx, cpy, sx, sy);
+                    ctx.strokeStyle = `rgba(${lightness}, ${lightness}, ${lightness + 5}, ${sparkAlpha})`;
+                    ctx.lineWidth = 1.5 - ring * 0.3;
+                    ctx.stroke();
+
+                    // Dark spark dot at tip
+                    if (i % 3 === 0) {
+                        const dotAlpha = (0.6 + Math.sin(i * 2 + time * 6) * 0.3) * ringAlpha;
+                        ctx.beginPath();
+                        ctx.arc(sx, sy, 2 - ring * 0.4, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(0, 0, 0, ${dotAlpha})`;
+                        ctx.fill();
+                    }
+                }
+
+                ctx.restore();
+            }
+
+            // === Dark ring edges ===
+            ctx.save();
+            ctx.translate(mx, my);
+            ctx.rotate(time * 0.8);
+
+            // Outer dark ring
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 1.1, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(0, 0, 0, ${0.4 * intensity})`;
+            ctx.lineWidth = 3 * intensity;
+            ctx.shadowColor = `rgba(0, 0, 0, ${0.7 * intensity})`;
+            ctx.shadowBlur = 20 * intensity;
+            ctx.stroke();
+
+            // Inner dark ring
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 0.7, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(0, 0, 0, ${0.3 * intensity})`;
+            ctx.lineWidth = 2 * intensity;
+            ctx.shadowBlur = 10 * intensity;
+            ctx.stroke();
+
+            ctx.restore();
+
+            // === Swirling dark accretion streaks ===
+            ctx.save();
+            ctx.translate(mx, my);
+            const streakCount = 10;
+            for (let s = 0; s < streakCount; s++) {
+                const sAngle = (Math.PI * 2 * s) / streakCount + time * 2;
+                const sRadius = radius * (0.6 + Math.sin(time * 3 + s) * 0.2);
+                const sx = Math.cos(sAngle) * sRadius * 0.8;
+                const sy = Math.sin(sAngle) * sRadius * 0.8;
+                const ex = Math.cos(sAngle + 0.5) * sRadius * 0.2;
+                const ey = Math.sin(sAngle + 0.5) * sRadius * 0.2;
+
+                ctx.beginPath();
+                ctx.moveTo(sx, sy);
+                ctx.quadraticCurveTo(
+                    Math.cos(sAngle + 0.25) * sRadius * 0.1,
+                    Math.sin(sAngle + 0.25) * sRadius * 0.1,
+                    ex, ey
+                );
+                ctx.strokeStyle = `rgba(0, 0, 0, ${0.2 * intensity})`;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
         /* ── Animation loop ── */
         function animate() {
             const W = window.innerWidth;
             const H = window.innerHeight;
             const links = linksRef.current;
             const mouse = mouseRef.current;
+            timeRef.current += 0.016;
+            const time = timeRef.current;
 
             ctx.clearRect(0, 0, W, H);
 
@@ -149,24 +294,20 @@ export default function FloatingLinks() {
             for (let i = 0; i < links.length; i++) {
                 const link = links[i];
 
-                /* ── Consume animation ── */
                 if (link.consuming) {
                     link.scale -= 0.04;
-                    // Pull toward cursor while shrinking
                     const dx = mouse.x - (link.x + link.w / 2);
                     const dy = mouse.y - (link.y + link.h / 2);
                     link.x += dx * 0.15;
                     link.y += dy * 0.15;
-                    link.rotationSpeed *= 1.15; // spin faster
+                    link.rotationSpeed *= 1.15;
                     link.rotation += link.rotationSpeed;
 
                     if (link.scale <= 0.01) {
-                        // Respawn from edge
                         links[i] = createLink(ctx, W, H, true);
                         continue;
                     }
                 } else {
-                    /* ── Gravity toward cursor ── */
                     if (mouse.active) {
                         const cx = link.x + link.w / 2;
                         const cy = link.y + link.h / 2;
@@ -175,27 +316,21 @@ export default function FloatingLinks() {
                         const dist = Math.sqrt(dx * dx + dy * dy);
 
                         if (dist < GRAVITY_RADIUS && dist > 1) {
-                            // Gravitational acceleration: F = G / r²
                             const force = GRAVITY_STRENGTH / (dist * dist);
                             const clampedForce = Math.min(force, 2.5);
                             link.vx += (dx / dist) * clampedForce * 0.016;
                             link.vy += (dy / dist) * clampedForce * 0.016;
-
-                            // Speed up rotation when being pulled
                             link.rotationSpeed += (Math.random() - 0.5) * 0.002;
                         }
 
-                        // Consume when very close
                         if (dist < CONSUME_RADIUS && !link.consuming) {
                             link.consuming = true;
                         }
                     }
 
-                    /* ── Move ── */
                     link.x += link.vx;
                     link.y += link.vy;
 
-                    /* ── Cap speed ── */
                     const speed = Math.sqrt(link.vx * link.vx + link.vy * link.vy);
                     const maxSpeed = 3;
                     if (speed > maxSpeed) {
@@ -203,61 +338,32 @@ export default function FloatingLinks() {
                         link.vy = (link.vy / speed) * maxSpeed;
                     }
 
-                    /* ── Edge bounce ── */
-                    if (link.x <= 0) {
-                        link.x = 0;
-                        link.vx = Math.abs(link.vx);
-                        link.rotationSpeed = -link.rotationSpeed + (Math.random() - 0.5) * 0.005;
-                    } else if (link.x + link.w >= W) {
-                        link.x = W - link.w;
-                        link.vx = -Math.abs(link.vx);
-                        link.rotationSpeed = -link.rotationSpeed + (Math.random() - 0.5) * 0.005;
-                    }
-                    if (link.y <= 0) {
-                        link.y = 0;
-                        link.vy = Math.abs(link.vy);
-                        link.rotationSpeed = -link.rotationSpeed + (Math.random() - 0.5) * 0.005;
-                    } else if (link.y + link.h >= H) {
-                        link.y = H - link.h;
-                        link.vy = -Math.abs(link.vy);
-                        link.rotationSpeed = -link.rotationSpeed + (Math.random() - 0.5) * 0.005;
-                    }
+                    if (link.x <= 0) { link.x = 0; link.vx = Math.abs(link.vx); link.rotationSpeed = -link.rotationSpeed + (Math.random() - 0.5) * 0.005; }
+                    else if (link.x + link.w >= W) { link.x = W - link.w; link.vx = -Math.abs(link.vx); link.rotationSpeed = -link.rotationSpeed + (Math.random() - 0.5) * 0.005; }
+                    if (link.y <= 0) { link.y = 0; link.vy = Math.abs(link.vy); link.rotationSpeed = -link.rotationSpeed + (Math.random() - 0.5) * 0.005; }
+                    else if (link.y + link.h >= H) { link.y = H - link.h; link.vy = -Math.abs(link.vy); link.rotationSpeed = -link.rotationSpeed + (Math.random() - 0.5) * 0.005; }
 
-                    /* ── Link–link collision ── */
                     for (let j = i + 1; j < links.length; j++) {
                         const other = links[j];
                         if (other.consuming) continue;
                         if (linksOverlap(link, other)) {
-                            // Swap velocities + small random perturbation
-                            const tmpVx = link.vx;
-                            const tmpVy = link.vy;
+                            const tmpVx = link.vx, tmpVy = link.vy;
                             link.vx = other.vx + (Math.random() - 0.5) * 0.3;
                             link.vy = other.vy + (Math.random() - 0.5) * 0.3;
                             other.vx = tmpVx + (Math.random() - 0.5) * 0.3;
                             other.vy = tmpVy + (Math.random() - 0.5) * 0.3;
-
-                            // Change rotation on collision
                             link.rotationSpeed = (Math.random() - 0.5) * 0.015;
                             other.rotationSpeed = (Math.random() - 0.5) * 0.015;
-
-                            // Push apart to prevent sticking
-                            const overlapX = (link.x + link.w / 2) - (other.x + other.w / 2);
-                            const overlapY = (link.y + link.h / 2) - (other.y + other.h / 2);
-                            const overlapDist = Math.sqrt(overlapX * overlapX + overlapY * overlapY) || 1;
-                            link.x += (overlapX / overlapDist) * 2;
-                            link.y += (overlapY / overlapDist) * 2;
-                            other.x -= (overlapX / overlapDist) * 2;
-                            other.y -= (overlapY / overlapDist) * 2;
+                            const ox = (link.x + link.w / 2) - (other.x + other.w / 2);
+                            const oy = (link.y + link.h / 2) - (other.y + other.h / 2);
+                            const od = Math.sqrt(ox * ox + oy * oy) || 1;
+                            link.x += (ox / od) * 2; link.y += (oy / od) * 2;
+                            other.x -= (ox / od) * 2; other.y -= (oy / od) * 2;
                         }
                     }
 
-                    /* ── Rotation ── */
                     link.rotation += link.rotationSpeed;
-
-                    /* ── Grow scale for newly spawned links ── */
-                    if (link.scale < 1) {
-                        link.scale = Math.min(1, link.scale + 0.02);
-                    }
+                    if (link.scale < 1) link.scale = Math.min(1, link.scale + 0.02);
                 }
 
                 /* ── Draw link ── */
@@ -275,9 +381,8 @@ export default function FloatingLinks() {
                 ctx.restore();
             }
 
-            /* ── Draw black hole cursor ── */
+            /* ── Draw Doctor Strange portal (black hole) ── */
             if (mouse.active) {
-                // Check if any link is within gravity radius
                 let nearestDist = Infinity;
                 for (const link of links) {
                     const cx = link.x + link.w / 2;
@@ -289,63 +394,8 @@ export default function FloatingLinks() {
                 }
 
                 if (nearestDist < GRAVITY_RADIUS) {
-                    // Intensity based on proximity
-                    const intensity = 1 - (nearestDist / GRAVITY_RADIUS);
-                    const baseRadius = BLACK_HOLE_VISUAL_RADIUS;
-                    const radius = baseRadius * (0.5 + intensity * 0.5);
-
-                    // Outer accretion glow
-                    const glowRadius = radius * 3;
-                    const glowGrad = ctx.createRadialGradient(
-                        mouse.x, mouse.y, radius * 0.5,
-                        mouse.x, mouse.y, glowRadius
-                    );
-                    glowGrad.addColorStop(0, `rgba(80, 60, 120, ${0.08 * intensity})`);
-                    glowGrad.addColorStop(0.4, `rgba(60, 40, 100, ${0.04 * intensity})`);
-                    glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                    ctx.beginPath();
-                    ctx.arc(mouse.x, mouse.y, glowRadius, 0, Math.PI * 2);
-                    ctx.fillStyle = glowGrad;
-                    ctx.fill();
-
-                    // Accretion ring
-                    const ringGrad = ctx.createRadialGradient(
-                        mouse.x, mouse.y, radius * 0.8,
-                        mouse.x, mouse.y, radius * 1.8
-                    );
-                    ringGrad.addColorStop(0, `rgba(100, 80, 140, ${0.12 * intensity})`);
-                    ringGrad.addColorStop(0.5, `rgba(60, 40, 90, ${0.06 * intensity})`);
-                    ringGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                    ctx.beginPath();
-                    ctx.arc(mouse.x, mouse.y, radius * 1.8, 0, Math.PI * 2);
-                    ctx.fillStyle = ringGrad;
-                    ctx.fill();
-
-                    // Dark sphere core
-                    const coreGrad = ctx.createRadialGradient(
-                        mouse.x - radius * 0.15, mouse.y - radius * 0.15, 0,
-                        mouse.x, mouse.y, radius
-                    );
-                    coreGrad.addColorStop(0, `rgba(10, 10, 15, ${0.85 * intensity})`);
-                    coreGrad.addColorStop(0.6, `rgba(15, 15, 25, ${0.75 * intensity})`);
-                    coreGrad.addColorStop(0.85, `rgba(30, 25, 50, ${0.5 * intensity})`);
-                    coreGrad.addColorStop(1, `rgba(50, 40, 70, ${0.15 * intensity})`);
-                    ctx.beginPath();
-                    ctx.arc(mouse.x, mouse.y, radius, 0, Math.PI * 2);
-                    ctx.fillStyle = coreGrad;
-                    ctx.fill();
-
-                    // Subtle highlight for 3D feel
-                    const highlightGrad = ctx.createRadialGradient(
-                        mouse.x - radius * 0.3, mouse.y - radius * 0.3, 0,
-                        mouse.x, mouse.y, radius * 0.6
-                    );
-                    highlightGrad.addColorStop(0, `rgba(255, 255, 255, ${0.06 * intensity})`);
-                    highlightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                    ctx.beginPath();
-                    ctx.arc(mouse.x, mouse.y, radius * 0.6, 0, Math.PI * 2);
-                    ctx.fillStyle = highlightGrad;
-                    ctx.fill();
+                    const intensity = Math.min(1, (1 - nearestDist / GRAVITY_RADIUS) * 1.3);
+                    drawPortal(ctx, mouse.x, mouse.y, intensity, time);
                 }
             }
 

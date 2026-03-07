@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import './App.css'
-import FloatingLinks from './Components/FloatingLinks'
+import FallingStars from './Components/FallingStars'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -60,7 +60,6 @@ function App() {
   async function copyToClipboard(text, historyId = null) {
     try {
       await navigator.clipboard.writeText(text)
-
       if (historyId !== null) {
         setCopiedHistoryId(historyId)
         setTimeout(() => setCopiedHistoryId(null), 2000)
@@ -69,14 +68,12 @@ function App() {
         setTimeout(() => setCopied(false), 2000)
       }
     } catch {
-      // Fallback
       const ta = document.createElement('textarea')
       ta.value = text
       document.body.appendChild(ta)
       ta.select()
       document.execCommand('copy')
       document.body.removeChild(ta)
-
       if (historyId !== null) {
         setCopiedHistoryId(historyId)
         setTimeout(() => setCopiedHistoryId(null), 2000)
@@ -89,108 +86,108 @@ function App() {
 
   return (
     <>
-      <FloatingLinks />
+      <FallingStars />
 
       <div className="app-wrapper">
         {/* ── Header ── */}
         <header className="app-header">
-          <div className="app-header-brand-container">
-            <h1 className="app-header-title">
-              <span className="title-dark">Shorten URLs.</span>
-              <br />
-              <span className="title-gradient">Simply.</span>
-            </h1>
-          </div>
+          <h1 className="app-header-title">
+            <span className="title-dark">Shorten URLs.</span>
+            <br />
+            <span className="title-gradient">Simply.</span>
+          </h1>
           <p className="app-header-subtitle">
             Transform long links into clean, shareable URLs
           </p>
         </header>
 
-        {/* ── Input Section ── */}
-        <div className="url-input-section">
-          <div className="input-row">
-            <div className="input-wrapper">
-              <input
-                className="url-input"
-                type="url"
-                placeholder="Paste your long URL here…"
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={loading}
-                id="url-input"
-              />
-              {url && (
-                <button
-                  className="input-clear-btn"
-                  onClick={() => setUrl('')}
-                  aria-label="Clear input"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-            <button
-              className="shorten-btn"
-              onClick={handleShorten}
-              disabled={loading || !url.trim()}
-              id="shorten-btn"
-            >
-              {loading ? 'Shortening…' : 'Shorten ✂️'}
-            </button>
-          </div>
-        </div>
-
-        {/* ── Loading ── */}
-        {loading && (
-          <div className="loading-container">
-            <div className="loading-ring" />
-            <span className="loading-text">Generating your short link…</span>
-          </div>
-        )}
-
-        {/* ── Error ── */}
-        {error && (
-          <div className="error-alert" id="error-alert">
-            <div className="error-alert-header">
-              <span className="error-alert-icon">⚠️</span>
-              <span className="error-alert-title">Oops!</span>
-            </div>
-            <p className="error-alert-message">{error}</p>
-          </div>
-        )}
-
-        {/* ── Result Card ── */}
-        {result && !loading && (
-          <div className="result-card" id="result-card">
-            <div className="result-card-header">
-              <div className="result-check-icon">✓</div>
-              <span className="result-card-title">Your short link is ready!</span>
-            </div>
-
-            <div className="short-url-row">
-              <span className="short-url-text">{result.shortUrl}</span>
+        {/* ── Glass Card ── */}
+        <div className="glass-card">
+          <div className="url-input-section">
+            <div className="input-row">
+              <div className="input-wrapper">
+                <input
+                  className="url-input"
+                  type="url"
+                  placeholder="Paste your long URL here..."
+                  value={url}
+                  onChange={e => setUrl(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={loading}
+                  id="url-input"
+                />
+                {url && (
+                  <button
+                    className="input-clear-btn"
+                    onClick={() => setUrl('')}
+                    aria-label="Clear input"
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
               <button
-                className={`copy-btn${copied ? ' copied' : ''}`}
-                onClick={() => copyToClipboard(result.shortUrl)}
-                id="copy-btn"
+                className="shorten-btn"
+                onClick={handleShorten}
+                disabled={loading || !url.trim()}
+                id="shorten-btn"
               >
-                {copied ? '✓ Copied!' : '📋 Copy'}
+                {loading ? 'Shortening...' : 'Shorten'}
               </button>
             </div>
+          </div>
 
-            <div className="result-meta">
-              <div className="result-meta-item">
-                <span className="result-meta-label">Original</span>
-                <span className="result-meta-value">{result.originalUrl}</span>
+          {/* ── Loading ── */}
+          {loading && (
+            <div className="loading-container">
+              <div className="loading-ring" />
+              <span className="loading-text">Generating your short link...</span>
+            </div>
+          )}
+
+          {/* ── Error ── */}
+          {error && (
+            <div className="error-alert" id="error-alert">
+              <div className="error-alert-header">
+                <span className="error-alert-icon">&#9888;</span>
+                <span className="error-alert-title">Oops!</span>
               </div>
-              <div className="result-meta-item">
-                <span className="result-meta-label">Created</span>
-                <span className="result-meta-value">{result.createdAt}</span>
+              <p className="error-alert-message">{error}</p>
+            </div>
+          )}
+
+          {/* ── Result Card ── */}
+          {result && !loading && (
+            <div className="result-card" id="result-card">
+              <div className="result-card-header">
+                <div className="result-check-icon">&#10003;</div>
+                <span className="result-card-title">Your short link is ready!</span>
+              </div>
+
+              <div className="short-url-row">
+                <span className="short-url-text">{result.shortUrl}</span>
+                <button
+                  className={`copy-btn${copied ? ' copied' : ''}`}
+                  onClick={() => copyToClipboard(result.shortUrl)}
+                  id="copy-btn"
+                >
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+
+              <div className="result-meta">
+                <div className="result-meta-item">
+                  <span className="result-meta-label">Original</span>
+                  <span className="result-meta-value">{result.originalUrl}</span>
+                </div>
+                <div className="result-meta-item">
+                  <span className="result-meta-label">Created</span>
+                  <span className="result-meta-value">{result.createdAt}</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* ── History ── */}
         {history.length > 1 && (
@@ -221,7 +218,7 @@ function App() {
                       copyToClipboard(item.shortUrl, item.id)
                     }}
                   >
-                    {copiedHistoryId === item.id ? '✓ Copied' : 'Copy'}
+                    {copiedHistoryId === item.id ? 'Copied' : 'Copy'}
                   </button>
                 </div>
               ))}
