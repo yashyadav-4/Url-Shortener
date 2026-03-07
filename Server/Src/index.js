@@ -1,5 +1,6 @@
 const express= require('express');
 const dotenv = require('dotenv');
+const cors= require('cors');
 const urlRoutes= require('./Routes/Url');
 
 dotenv.config();
@@ -10,6 +11,13 @@ const ConnectionToMongoDb = require('./connection')
 const app=express();
 const PORT= process.env.PORT || 8000;
 
+const corsOptions= {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods :['GET' ,'POST'],
+    allowedHeaders:['Content-Type' , 'Authorization'],
+    credentials:true,
+};
+
 ConnectionToMongoDb()
 .then(()=>{
     console.log('mongoDb is connected')
@@ -18,6 +26,7 @@ ConnectionToMongoDb()
 
 // middlewares
 app.use(express.json());
+app.use(cors(corsOptions));
 
 //routes
 
