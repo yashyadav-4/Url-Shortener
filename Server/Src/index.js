@@ -1,9 +1,11 @@
 const express= require('express');
 const dotenv = require('dotenv');
 const cors= require('cors');
+dotenv.config();
+const redis= require('./RedisClient');
+
 const urlRoutes= require('./Routes/Url');
 
-dotenv.config();
 
 const ConnectionToMongoDb = require('./connection')
 

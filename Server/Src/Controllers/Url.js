@@ -1,3 +1,4 @@
+const redis= require('../RedisClient');
 const {shortenUrl , getOriginalUrl}= require('../Services/Url');
 
 async function handleShortenUrl(req , res){
@@ -21,6 +22,10 @@ async function handleShortenUrl(req , res){
         }
         
         const result= await shortenUrl(longUrl);
+        
+        // redis cache
+        await redis.set(result.shortCode , result.originalUrl , 'EX' , 86400);
+
         return res.status(201).json({
             success:true,
             data:{
@@ -38,6 +43,23 @@ async function handleShortenUrl(req , res){
 async function handleRedirect(req , res){
     try{
         const {shortCode}= req.params;
+        
+        const start=Date.now();
+
+        // redis cache
+        try{
+             const cachedUrl= await redis.get(shortCode);
+            if(cachedUrl){
+                const duration= Date.now() - start; 
+                console.log('Redis cache hit: ' , duration , ' in mis');
+                return res.redirect(cachedUrl);
+            }
+
+        }catch(err){
+            console.error('redis problem (maybe down) error: ', err);
+        }
+       
+        // cache miss;
         const originalUrl= await getOriginalUrl(shortCode);
         if(!originalUrl){
             return res.status(404).json({
@@ -45,6 +67,11 @@ async function handleRedirect(req , res){
                 message: "Short link not found"
             })
         }
+
+        // updating redis so next click is hit and updating in background so wont effect user 
+        redis.set(shortCode , originalUrl , 'EX' , 86400 ).catch(err=>{console.error("cache update failed: " , err)});
+        const duration= Date.now()- start;
+        console.log('mongo db hit(cache miss) : ', duration , ' in ms');
         return res.redirect(originalUrl);
     }catch(err){
        console.log('controllers error(handle redirect) :' , err);

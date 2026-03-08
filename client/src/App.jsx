@@ -2,7 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import FallingStars from './Components/FallingStars'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
 function App() {
   const [url, setUrl] = useState('')
@@ -89,7 +89,6 @@ function App() {
       <FallingStars />
 
       <div className="app-wrapper">
-        {/* ── Header ── */}
         <header className="app-header">
           <h1 className="app-header-title">
             <span className="title-dark">Shorten URLs.</span>
@@ -101,7 +100,6 @@ function App() {
           </p>
         </header>
 
-        {/* ── Glass Card ── */}
         <div className="glass-card">
           <div className="url-input-section">
             <div className="input-row">
@@ -137,7 +135,6 @@ function App() {
             </div>
           </div>
 
-          {/* ── Loading ── */}
           {loading && (
             <div className="loading-container">
               <div className="loading-ring" />
@@ -145,7 +142,6 @@ function App() {
             </div>
           )}
 
-          {/* ── Error ── */}
           {error && (
             <div className="error-alert" id="error-alert">
               <div className="error-alert-header">
@@ -156,7 +152,6 @@ function App() {
             </div>
           )}
 
-          {/* ── Result Card ── */}
           {result && !loading && (
             <div className="result-card" id="result-card">
               <div className="result-card-header">
@@ -189,7 +184,6 @@ function App() {
           )}
         </div>
 
-        {/* ── History ── */}
         {history.length > 1 && (
           <div className="history-section">
             <div className="history-header">
