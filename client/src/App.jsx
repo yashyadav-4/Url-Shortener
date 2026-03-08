@@ -2,7 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import FallingStars from './Components/FallingStars'
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://url-shortener-backend-9yki.onrender.com'
+const API_BASE = 'https://url-shortener-backend-9yki.onrender.com'
 
 function App() {
   const [url, setUrl] = useState('')
