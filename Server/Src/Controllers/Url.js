@@ -31,7 +31,7 @@ async function handleShortenUrl(req , res){
             data:{
                 shortCode: result.shortCode,
                 originalUrl:result.originalUrl,
-                shortUrl: `${req.protocol}://${req.get('host')}/url/${result.shortCode}` // req.get('host) dynamically gets domain 
+                shortUrl: `${req.protocol}://${req.get('host')}/api/${result.shortCode}` // req.get('host) dynamically gets domain 
             }
         })
 
@@ -51,7 +51,7 @@ async function handleRedirect(req , res){
              const cachedUrl= await redis.get(shortCode);
             if(cachedUrl){
                 const duration= Date.now() - start; 
-                console.log('Redis cache hit: ' , duration , ' in mis');
+                console.log('Redis cache hit: ' , duration , ' in ms');
                 return res.redirect(cachedUrl);
             }
 

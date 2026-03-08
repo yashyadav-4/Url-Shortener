@@ -2,7 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import FallingStars from './Components/FallingStars'
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_BASE || ''
 
 function App() {
   const [url, setUrl] = useState('')
@@ -22,7 +22,7 @@ function App() {
     setCopied(false)
 
     try {
-      const res = await fetch(`${API_BASE}/url`, {
+      const res = await fetch(`${API_BASE}/api`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ longUrl: url.trim() }),

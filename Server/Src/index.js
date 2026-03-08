@@ -11,7 +11,7 @@ const ConnectionToMongoDb = require('./connection')
 
 
 const app=express();
-const PORT= process.env.PORT || 8000;
+const PORT= process.env.PORT || 3001;
 
 const corsOptions= {
     origin: process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -36,7 +36,7 @@ app.get('/' , (req , res)=>{
     res.send('working');
 })
 
-app.use('/url' , urlRoutes);
+app.use('/api' , urlRoutes);
 
 app.listen(PORT ,()=>{
     console.log(`Server is live at: http://localhost:${PORT}`);
