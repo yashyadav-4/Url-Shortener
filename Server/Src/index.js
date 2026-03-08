@@ -14,7 +14,7 @@ const app=express();
 const PORT= process.env.PORT || 3001;
 
 const corsOptions= {
-    origin: process.env.FRONTEND_URL || 'http://localhost',
+    origin: process.env.FRONTEND_URL || 'https://url-shortener-client-9jln.onrender.com/',
     methods :['GET' ,'POST'],
     allowedHeaders:['Content-Type' , 'Authorization'],
     credentials:true,
