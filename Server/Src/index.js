@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 dotenv.config();
 const redis = require('./RedisClient');
+const axios= require('axios');
 
 const urlRoutes = require('./Routes/Url');
 
