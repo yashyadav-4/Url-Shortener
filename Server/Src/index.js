@@ -20,9 +20,6 @@ const corsOptions = {
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
 };
-
-const axios = require('axios');
-
 setInterval(() => {
     axios.get(process.env.BACKEND_URL)
         .then(() => console.log('Self-ping successful'))
