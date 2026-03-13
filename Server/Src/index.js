@@ -43,7 +43,8 @@ app.get('/', (req, res) => {
 })
 
 app.get('/ping', (req, res) => {
-  res.status(200).send('pong');
+    console.log('cron-job-ping');
+    res.status(200).send('pong');
 });
 
 app.use('/api', urlRoutes);
