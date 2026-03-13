@@ -42,6 +42,10 @@ app.get('/', (req, res) => {
     res.send('working');
 })
 
+app.get('/ping', (req, res) => {
+  res.status(200).send('pong');
+});
+
 app.use('/api', urlRoutes);
 
 app.listen(PORT, () => {
