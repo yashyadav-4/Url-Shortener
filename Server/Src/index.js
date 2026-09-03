@@ -4,6 +4,7 @@ const cors = require('cors');
 dotenv.config();
 const redis = require('./RedisClient');
 const axios= require('axios');
+const mongoose = require('mongoose');
 
 const urlRoutes = require('./Routes/Url');
 
@@ -28,7 +29,17 @@ setInterval(() => {
 
 ConnectionToMongoDb()
     .then(() => {
-        console.log('mongoDb is connected')
+        console.log('mongoDb is connected');
+
+        //mongodb server ping (bcz free tier disables after 60 days of inactivity)
+        setInterval(async () => {
+            try {
+                await mongoose.connection.db.admin().ping();
+                console.log('mongodb keep alive ping successful');
+            } catch (err) {
+                console.error('mongodb keep alive ping failed:', err);
+            }
+        }, 3 * 24 * 60 * 60 * 1000); 
     })
     .catch(err => console.log('Error: ', err));
 
