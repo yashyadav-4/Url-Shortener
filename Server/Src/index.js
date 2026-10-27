@@ -4,11 +4,13 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
-dotenv.config();
+const path = require('path');
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const urlRoutes = require('./Routes/Url');
 const ConnectionToMongoDb = require('./connection');
 const { syncRedisCounter, flushClicksToMongo } = require('./Services/Url');
+const latencyMonitor = require('./Middlewares/latencyMonitor');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -56,6 +58,7 @@ ConnectionToMongoDb()
 app.use(helmet());
 app.use(express.json());
 app.use(cors(corsOptions));
+app.use(latencyMonitor);
 
 app.get('/', (req, res) => {
     res.send('working');
