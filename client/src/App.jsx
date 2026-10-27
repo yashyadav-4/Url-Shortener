@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import FallingStars from './Components/FallingStars'
 
@@ -10,8 +10,21 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
-  const [history, setHistory] = useState([])
+  const [history, setHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('url-history');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  })
   const [copiedHistoryId, setCopiedHistoryId] = useState(null)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('url-history', JSON.stringify(history));
+    } catch {}
+  }, [history])
 
   async function handleShorten() {
     if (!url.trim()) return

@@ -1,44 +1,60 @@
-const Url= require('../Models/Url');
-const Counter = require('../Models/Counter');
-const {encode}= require('../Utility/Base62');
+const Url = require('../Models/Url');
+const { encode } = require('../Utility/Base62');
+const redis = require('../RedisClient');
 
-async function shortenUrl(longUrl){
-    try{
-        const counter= await Counter.findOneAndUpdate(
-            {_id:'url_count'},
-            {$inc:{seq:1}}, // just incrementing
-            {returnDocument:'after', upsert:true} // create counter if its first time
-        )
-        const shortUrl= encode(counter.seq);
-        const newUrl=await Url.create({
-            originalUrl: longUrl,
-            shortCode:shortUrl,
-            urlId:counter.seq
-        });
-        return newUrl;
-    }
-    catch(err){
-        console.log('Service Error(shorten Url): ' , err);
-        throw new Error("failed to shorten url");
+async function syncRedisCounter() {
+    const highest = await Url.findOne().sort({ urlId: -1 }).select('urlId').lean();
+    const maxId = highest ? highest.urlId : 0;
+
+    const current = await redis.get('url:global:counter');
+    if (current === null || parseInt(current, 10) < maxId) {
+        await redis.set('url:global:counter', maxId);
+        console.log(`Redis counter synced: set to ${maxId}`);
+    } else {
+        console.log(`Redis counter OK: current=${current}, mongo max=${maxId}`);
     }
 }
-async function getOriginalUrl(shortCode){
-    try{
-        const urlData= await Url.findOne({shortCode});
-        if(urlData){
-            Url.updateOne({_id:urlData._id} , {$inc:{clicks:1}}).exec()
-            .catch(err =>{
-                console.error('background async update erroor :' , err);
-            });
-            // doing asynchronously to avoid user waiting we can do updating in background
-            // exec() command basically tells that the query is ready now you can execute it because in general mongosse expects await to be used when querying
+
+async function shortenUrl(longUrl) {
+    try {
+        const existing = await Url.findOne({ originalUrl: longUrl });
+        if (existing) return existing;
+
+        const id = await redis.incr('url:global:counter');
+        const shortCode = encode(id);
+
+        const newUrl = await Url.create({
+            originalUrl: longUrl,
+            shortCode,
+            urlId: id
+        });
+        return newUrl;
+    } catch (err) {
+        if (err.code === 11000) {
+            const existing = await Url.findOne({ originalUrl: longUrl });
+            if (existing) return existing;
+        }
+        console.error('Service Error(shortenUrl):', err);
+        throw new Error('failed to shorten url');
+    }
+}
+
+async function getOriginalUrl(shortCode) {
+    try {
+        const urlData = await Url.findOne({ shortCode });
+        if (urlData) {
+            Url.updateOne({ _id: urlData._id }, { $inc: { clicks: 1 } })
+                .then(result => {
+                    if (result.matchedCount === 0) console.warn('click update: no doc matched _id:', urlData._id);
+                })
+                .catch(err => console.error('background click update error:', err));
             return urlData.originalUrl;
         }
         return null;
-    }
-    catch(err){
-        console.log('Service Error(get original url): ' , err);
-        throw new Error("failed to get original url"); 
+    } catch (err) {
+        console.error('Service Error(getOriginalUrl):', err);
+        throw new Error('failed to get original url');
     }
 }
-module.exports= { shortenUrl , getOriginalUrl};
+
+module.exports = { shortenUrl, getOriginalUrl, syncRedisCounter };
