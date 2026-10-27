@@ -1,6 +1,5 @@
 const redis = require('../RedisClient');
 const { shortenUrl, getOriginalUrl } = require('../Services/Url');
-const Url = require('../Models/Url');
 
 async function handleShortenUrl(req, res) {
     try {
@@ -27,7 +26,6 @@ async function handleShortenUrl(req, res) {
         }
 
         const normalizedUrl = parsed.href;
-
         const result = await shortenUrl(normalizedUrl);
 
         await redis.set(result.shortCode, result.originalUrl, 'EX', 86400);
@@ -37,7 +35,8 @@ async function handleShortenUrl(req, res) {
             data: {
                 shortCode: result.shortCode,
                 originalUrl: result.originalUrl,
-                shortUrl: `${req.protocol}://${req.get('host')}/api/${result.shortCode}`
+                shortUrl: `${req.protocol}://${req.get('host')}/api/${result.shortCode}`,
+                createdAt: result.createdAt,
             }
         });
     } catch (err) {
@@ -55,12 +54,7 @@ async function handleRedirect(req, res) {
             const cachedUrl = await redis.get(shortCode);
             if (cachedUrl) {
                 console.log('Redis cache hit:', Date.now() - start, 'ms');
-                // Increment clicks in the background even on a cache hit
-                Url.updateOne({ shortCode }, { $inc: { clicks: 1 } })
-                    .then(result => {
-                        if (result.matchedCount === 0) console.warn('click update: no doc matched shortCode:', shortCode);
-                    })
-                    .catch(err => console.error('background click update error:', err));
+                redis.incr(`clicks:${shortCode}`).catch(err => console.error('click incr error:', err));
                 return res.redirect(cachedUrl);
             }
         } catch (err) {
@@ -72,6 +66,7 @@ async function handleRedirect(req, res) {
             return res.status(404).json({ success: false, message: 'Short link not found' });
         }
 
+        redis.incr(`clicks:${shortCode}`).catch(err => console.error('click incr error:', err));
         redis.set(shortCode, originalUrl, 'EX', 86400).catch(err => console.error('cache update failed:', err));
         console.log('MongoDB hit (cache miss):', Date.now() - start, 'ms');
         return res.redirect(originalUrl);

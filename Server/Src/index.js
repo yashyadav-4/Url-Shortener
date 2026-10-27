@@ -8,7 +8,7 @@ dotenv.config();
 
 const urlRoutes = require('./Routes/Url');
 const ConnectionToMongoDb = require('./connection');
-const { syncRedisCounter } = require('./Services/Url');
+const { syncRedisCounter, flushClicksToMongo } = require('./Services/Url');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,6 +39,8 @@ ConnectionToMongoDb()
         } catch (err) {
             console.error('Redis counter sync failed:', err);
         }
+
+        setInterval(flushClicksToMongo, 30 * 1000);
 
         setInterval(async () => {
             try {

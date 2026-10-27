@@ -15,6 +15,37 @@ async function syncRedisCounter() {
     }
 }
 
+async function flushClicksToMongo() {
+    try {
+        const keys = await redis.keys('clicks:*');
+        if (!keys.length) return;
+
+        const pipeline = redis.pipeline();
+        keys.forEach(key => pipeline.getdel(key));
+        const results = await pipeline.exec();
+
+        const bulkOps = [];
+        keys.forEach((key, i) => {
+            const count = parseInt(results[i][1], 10);
+            if (!count) return;
+            const shortCode = key.slice('clicks:'.length);
+            bulkOps.push({
+                updateOne: {
+                    filter: { shortCode },
+                    update: { $inc: { clicks: count } }
+                }
+            });
+        });
+
+        if (bulkOps.length) {
+            await Url.bulkWrite(bulkOps, { ordered: false });
+            console.log(`Click flush: updated ${bulkOps.length} URL(s)`);
+        }
+    } catch (err) {
+        console.error('Click flush error:', err);
+    }
+}
+
 async function shortenUrl(longUrl) {
     try {
         const existing = await Url.findOne({ originalUrl: longUrl });
@@ -42,14 +73,7 @@ async function shortenUrl(longUrl) {
 async function getOriginalUrl(shortCode) {
     try {
         const urlData = await Url.findOne({ shortCode });
-        if (urlData) {
-            Url.updateOne({ _id: urlData._id }, { $inc: { clicks: 1 } })
-                .then(result => {
-                    if (result.matchedCount === 0) console.warn('click update: no doc matched _id:', urlData._id);
-                })
-                .catch(err => console.error('background click update error:', err));
-            return urlData.originalUrl;
-        }
+        if (urlData) return urlData.originalUrl;
         return null;
     } catch (err) {
         console.error('Service Error(getOriginalUrl):', err);
@@ -57,4 +81,4 @@ async function getOriginalUrl(shortCode) {
     }
 }
 
-module.exports = { shortenUrl, getOriginalUrl, syncRedisCounter };
+module.exports = { shortenUrl, getOriginalUrl, syncRedisCounter, flushClicksToMongo };

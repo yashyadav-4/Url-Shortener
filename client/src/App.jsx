@@ -53,7 +53,7 @@ function App() {
         shortUrl: data.data.shortUrl,
         shortCode: data.data.shortCode,
         originalUrl: data.data.originalUrl,
-        createdAt: new Date().toLocaleString(),
+        createdAt: new Date(data.data.createdAt).toLocaleString(),
       }
 
       setResult(entry)
